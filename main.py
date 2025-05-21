@@ -10,7 +10,7 @@ import numpy as np
 # Open webcam safely
 cap = cv2.VideoCapture(1)
 if not cap.isOpened():
-    print("❌ Could not access webcam.")
+    print("Could not access webcam.")
     exit()
 
 # Initialize FaceMesh with minimal options
