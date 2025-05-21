@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Better Eyelash Overlay</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    video, canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+    }
+  </style>
+</head>
+<body>
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="canvas"></canvas>
+
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const lashImg = new Image();
+    lashImg.src = 'lash.png';
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`
+    });
+
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.5,
+      minTrackingConfidence: 0.5
+    });
+
+    function drawRotatedImage(image, x, y, angle, width, height) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.drawImage(image, -width / 2, -height, width, height);
+      ctx.restore();
+    }
+
+    function drawLash(landmarks, topLidIndices) {
+      const pts = topLidIndices.map(i => landmarks[i]);
+      const [p1, p2, p3] = pts;
+
+      const x = (p1.x + p2.x + p3.x) / 3 * canvas.width;
+      const y = (p1.y + p2.y + p3.y) / 3 * canvas.height;
+
+      const dx = (p3.x - p1.x) * canvas.width;
+      const dy = (p3.y - p1.y) * canvas.height;
+      const angle = Math.atan2(dy, dx);
+
+      const lashWidth = Math.sqrt(dx * dx + dy * dy) * 1.5;
+      const lashHeight = lashWidth * 0.4;
+
+      drawRotatedImage(lashImg, x, y, angle, lashWidth, lashHeight);
+    }
+
+    faceMesh.onResults((results) => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      if (results.multiFaceLandmarks.length === 0) return;
+      const landmarks = results.multiFaceLandmarks[0];
+
+      // Right eye upper lid: 159, 153, 145
+      // Left eye upper lid: 386, 380, 374
+      drawLash(landmarks, [159, 153, 145]);
+      drawLash(landmarks, [386, 380, 374]);
+    });
+
+    const camera = new Camera(video, {
+      onFrame: async () => {
+        await faceMesh.send({ image: video });
+      },
+      width: 640,
+      height: 480
+    });
+    camera.start();
+  </script>
+</body>
+</html>
